@@ -1,79 +1,17 @@
-aliases:
-  - &restore-cache
-    keys:
-      - v1-dependencies-{{ .Branch }}-{{ checksum "yarn.lock" }}
-      # Fallback in case checksum fails
-      - v1-dependencies-{{ .Branch }}-
-
-  - &install
-    run: yarn --no-progress
-
-  - &save-cache
-    paths:
-      - node_modules
-    key: v1-dependencies-{{ .Branch }}-{{ checksum "yarn.lock" }}
-
-version: 2
+version: 2.1
+orbs:
+  node: circleci/node@1.1.6
 jobs:
-  Typecheck:
-    docker:
-      - image: circleci/node:8
+  build-and-test:
+    executor:
+      name: node/default
     steps:
       - checkout
-      - restore-cache: *restore-cache
-      - *install
-      - run: yarn typecheck
-
-  Build:
-    docker:
-      - image: circleci/node:8
-    steps:
-      - checkout
-      - restore-cache: *restore-cache
-      - *install
-      - run: yarn build
-      - run: npx bundlesize
-      - save-cache: *save-cache
-
-  Test:
-    docker:
-      - image: circleci/node:8
-    steps:
-      - checkout
-      - restore-cache: *restore-cache
-      - run:
-          name: Workaround for GoogleChrome/puppeteer#290
-          command: 'sh .circleci/setup_puppeteer.sh'
-      - *install
-      - run: yarn build:umd
-      - run:
-          command: yarn test --ci --runInBand
-      - store_test_results:
-          path: reports
-
-  Semantic Release:
-    docker:
-      - image: circleci/node:8
-    steps:
-      - checkout
-      - restore-cache: *restore-cache
-      - *install
-      - run: npx semantic-release
-
-# Workflows enables us to run multiple jobs in parallel
+      - node/with-cache:
+          steps:
+            - run: npm install
+            - run: npm test
 workflows:
-  version: 2
-  Build and Deploy:
-    jobs:
-      - Typecheck
-      - Build
-      - Test
-      - Semantic Release:
-          requires:
-            - Typecheck
-            - Build
-            - Test
-          filters:
-            branches:
-              only:
-                - master
+    build-and-test:
+      jobs:
+        - build-and-test
